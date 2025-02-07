@@ -779,6 +779,7 @@ ResultType UserMenu::UpdateOptions(UserMenuItem *aMenuItem, LPCTSTR aOptions)
 		// End generic option-parsing code; begin menu options.
 		if (!_tcsicmp(option_word, _T("Radio"))) if (adding) new_type |= MFT_RADIOCHECK; else new_type &= ~MFT_RADIOCHECK;
 		else if (mMenuType == MENU_TYPE_BAR && !_tcsicmp(option_word, _T("Right"))) if (adding) new_type |= MFT_RIGHTJUSTIFY; else new_type &= ~MFT_RIGHTJUSTIFY;
+		else if (!_tcsicmp(option_word, _T("RTL"))) if (adding) new_type |= MFT_RIGHTORDER; else new_type &= ~MFT_RIGHTORDER;
 		else if (!_tcsicmp(option_word, _T("Break"))) if (adding) new_type |= MFT_MENUBREAK; else new_type &= ~MFT_MENUBREAK;
 		else if (!_tcsicmp(option_word, _T("BarBreak"))) if (adding) new_type |= MFT_MENUBARBREAK; else new_type &= ~MFT_MENUBARBREAK;
 		else if (ctoupper(*option_word) == 'P')
