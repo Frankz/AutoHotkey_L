@@ -8120,7 +8120,7 @@ FResult GuiType::SetFont(optl<StrArg> aOptions, optl<StrArg> aFontName)
 	}
 	// Failure of the above is rare because it falls back to default typeface if the one specified
 	// isn't found.  It will have already displayed the error:
-	return FAIL;
+	return FR_FAIL;
 }
 
 
