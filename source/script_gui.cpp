@@ -24,6 +24,7 @@ GNU General Public License for more details.
 #include "window.h" // for SetForegroundWindowEx()
 #include "qmath.h" // for qmathLog()
 #include "script_func_impl.h"
+#include <ShellScalingApi.h>
 
 
 static inline void AddGuiToList(GuiType* gui)
@@ -339,8 +340,14 @@ FResult GuiType::__New(optl<StrArg> aOptions, optl<StrArg> aTitle, optl<IObject*
 {
 	if (mHwnd || mDisposed)
 		return FError(ERR_INVALID_USAGE);
-
-	mDPI = g_ScreenDPI;
+	
+	POINT pt {0,0}; // The window is always created at this position.
+	static auto GetDpiForMonitor = (decltype(&::GetDpiForMonitor))GetProcAddress(GetModuleHandle(_T("shcore.dll")), "GetDpiForMonitor");
+	UINT dpiX, dpiY;
+	if (GetDpiForMonitor && SUCCEEDED(GetDpiForMonitor(MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY), MDT_EFFECTIVE_DPI, &dpiX, &dpiY)))
+		mDPI = dpiX;
+	else
+		mDPI = g_ScreenDPI;
 
 	bool set_last_found_window = false;
 	ToggleValueType own_dialogs = TOGGLE_INVALID;
