@@ -757,3 +757,14 @@ FResult GuiControlType::LV_SetImageList(UINT_PTR aImageListID, optl<int> aIconTy
 	aRetVal = (UINT_PTR)ListView_SetImageList(hwnd, himl, list_type);
 	return OK;
 }
+
+
+
+void GuiControlType::RescaleListViewColumns(int aNumerator, int aDenominator)
+{
+	if (ListView_GetView(hwnd) != LV_VIEW_DETAILS)
+		return;
+	lv_attrib_type &lv_attrib = *union_lv_attrib;
+	for (int i = 0; i < lv_attrib.col_count; ++i)
+		ListView_SetColumnWidth(hwnd, i, MulDiv(ListView_GetColumnWidth(hwnd, i), aNumerator, aDenominator));
+}

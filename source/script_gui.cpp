@@ -11239,6 +11239,10 @@ void GuiType::RescaleForDPI(int aDPI, RECT &aRect)
 			if (h - (rect.bottom - rect.top) > item_height / 2)
 				MoveWindow(control.hwnd, x, y, w, rect.bottom - rect.top + item_height, FALSE);
 		}
+		else if (control.type == GUI_CONTROL_LISTVIEW)
+		{
+			control.RescaleListViewColumns(aDPI, mDPI);
+		}
 	}
 	
 	mDPI = aDPI;
