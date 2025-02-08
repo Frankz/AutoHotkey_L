@@ -710,6 +710,7 @@ public:
 	int ScaleSize(int x) { return mUsesDPIScaling && x != -1 ? DPIScale(x) : x; }
 
 	void RescaleForDPI(int aDPI, RECT &aRect);
+	static int RescaleFontForDPI(HFONT aFont, int aOldDPI, int aNewDPI);
 
 	int GetSystemMetrics(int nIndex);
 

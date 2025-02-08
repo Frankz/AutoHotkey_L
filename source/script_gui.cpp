@@ -349,6 +349,14 @@ FResult GuiType::__New(optl<StrArg> aOptions, optl<StrArg> aTitle, optl<IObject*
 	else
 		mDPI = g_ScreenDPI;
 
+	if (g_ScreenDPI != mDPI)
+	{
+		int font_index = RescaleFontForDPI(sFont[0].hfont, g_ScreenDPI, mDPI);
+		if (font_index != -1)
+			mCurrentFontIndex = font_index;
+		//else use default index 0 (unlikely to occur).
+	}
+
 	bool set_last_found_window = false;
 	ToggleValueType own_dialogs = TOGGLE_INVALID;
 	if (!ParseOptions(aOptions.value_or_empty(), set_last_found_window, own_dialogs))
@@ -8130,7 +8138,7 @@ int GuiType::FindOrCreateFont(LPCTSTR aOptions, LPCTSTR aFontName, FontType *aFo
 // caller can see that this is the default-gui-font whenever index 0 is returned).  Returns -1
 // on error, but still sets *aColor to be the color name, if any was specified in aOptions.
 // To prevent a large number of font handles from being created (such as one for each control
-// that uses something other than GUI_DEFAULT_FONT), it seems best to conserve system resources
+// that uses something other than DEFAULT_GUI_FONT), it seems best to conserve system resources
 // by creating new fonts only when called for.  Therefore, this function will first check if
 // the specified font already exists within the array of fonts.  If not found, a new font will
 // be added to the array.
@@ -11169,7 +11177,12 @@ void GuiType::RescaleForDPI(int aDPI, RECT &aRect)
 	// DeferWindowPos isn't used because it doesn't work with mixed parent windows
 	// (such as Tab3 together with other controls), and it seems to give no benefit.
 
-	HFONT last_old_font = NULL, last_new_font = NULL;
+	// Scale the selected font in case this.Add(...) or GuiCtrl.SetFont() is used later.
+	HFONT last_old_font = sFont[mCurrentFontIndex].hfont;
+	int font_index = RescaleFontForDPI(last_old_font, mDPI, aDPI);
+	if (font_index != -1)
+		mCurrentFontIndex = font_index;
+	HFONT last_new_font = sFont[mCurrentFontIndex].hfont;
 
 	for (GuiIndexType i = 0; i < mControlCount; ++i)
 	{
@@ -11191,26 +11204,15 @@ void GuiType::RescaleForDPI(int aDPI, RECT &aRect)
 		if (control.UsesFontAndTextColor())
 		{
 			// Scale the font.
-			FontType font;
-			font.hfont = (HFONT)SendMessage(control.hwnd, WM_GETFONT, 0, 0);
-			if (font.hfont)
+			HFONT hfont = (HFONT)SendMessage(control.hwnd, WM_GETFONT, 0, 0);
+			if (hfont)
 			{
-				if (last_old_font != font.hfont)
+				if (last_old_font != hfont)
 				{
-					FontGetAttributes(font);
-
-					font.lfHeight = MulDiv(font.lfHeight, aDPI, mDPI);
-
-					int font_index = FindFont(font);
+					font_index = RescaleFontForDPI(hfont, mDPI, aDPI);
 					if (font_index == -1)
-					{
-						if (sFontCount >= MAX_GUI_FONTS)
-							continue; // Silent failure.
-						if (!(font.hfont = CreateFontIndirect(&font)))
-							continue; // Silent failure.
-						sFont[font_index = sFontCount++] = font; // Copy the newly created font's attributes into the next array element.
-					}
-					last_old_font = font.hfont;
+						continue; // Silent failure.
+					last_old_font = hfont;
 					last_new_font = sFont[font_index].hfont;
 				}
 
@@ -11248,6 +11250,28 @@ void GuiType::RescaleForDPI(int aDPI, RECT &aRect)
 	// A full redraw is needed in some cases to prevent visual glitches, and doesn't
 	// seem useful to avoid in any other case since all of the controls are changing.
 	RedrawWindow(mHwnd, NULL, NULL, RDW_INVALIDATE | RDW_ERASE);
+}
+
+
+
+int GuiType::RescaleFontForDPI(HFONT aFont, int aOldDPI, int aNewDPI)
+{
+	FontType font;
+	font.hfont = aFont;
+	FontGetAttributes(font);
+
+	font.lfHeight = MulDiv(font.lfHeight, aNewDPI, aOldDPI);
+
+	int font_index = FindFont(font);
+	if (font_index == -1)
+	{
+		if (sFontCount >= MAX_GUI_FONTS)
+			return -1;
+		if (!(font.hfont = CreateFontIndirect(&font)))
+			return -1;
+		sFont[font_index = sFontCount++] = font; // Copy the newly created font's attributes into the next array element.
+	}
+	return font_index;
 }
 
 
