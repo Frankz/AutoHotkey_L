@@ -533,7 +533,7 @@ public:
 		, mMaxWidth(COORD_UNSPECIFIED), mMaxHeight(COORD_UNSPECIFIED)
 		, mGuiShowHasNeverBeenDone(true), mFirstActivation(true), mShowIsInProgress(false)
 		, mDestroyWindowHasBeenCalled(false), mControlWidthWasSetByContents(false)
-		, mUsesDPIScaling(true), mDPI(0), mDefaultDPIResize(true)
+		, mUsesDPIScaling(true), mDPI(96), mDefaultDPIResize(true)
 		, mDisposed(false)
 		, mVisibleRefCounted(false)
 	{

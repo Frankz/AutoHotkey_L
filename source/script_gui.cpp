@@ -340,6 +340,8 @@ FResult GuiType::__New(optl<StrArg> aOptions, optl<StrArg> aTitle, optl<IObject*
 	if (mHwnd || mDisposed)
 		return FError(ERR_INVALID_USAGE);
 
+	mDPI = g_ScreenDPI;
+
 	bool set_last_found_window = false;
 	ToggleValueType own_dialogs = TOGGLE_INVALID;
 	if (!ParseOptions(aOptions.value_or_empty(), set_last_found_window, own_dialogs))
@@ -2473,8 +2475,6 @@ FResult GuiType::Create(LPCTSTR aTitle)
 	// 3) Possibly other ways.
 	SendMessage(mHwnd, WM_SETICON, ICON_SMALL, (LPARAM)small_icon); // Testing shows that a zero is returned for both;
 	SendMessage(mHwnd, WM_SETICON, ICON_BIG, (LPARAM)big_icon);   // i.e. there is no previous icon to destroy in this case.
-
-	mDPI = g_ScreenDPI;
 
 	return OK;
 }
