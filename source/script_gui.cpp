@@ -7489,8 +7489,15 @@ FResult GuiType::Show(optl<StrArg> aOptions)
 		// If the window has a border or caption this also changes top & left *slightly* from zero.
 		RECT rect = {0, 0, width, height}; // left,top,right,bottom
 		LONG style = GetWindowLong(mHwnd, GWL_STYLE);
+		DWORD ex_style = GetWindowLong(mHwnd, GWL_EXSTYLE);
 		BOOL has_menu = GetMenu(mHwnd) ? TRUE : FALSE;
-		AdjustWindowRectEx(&rect, style, has_menu, GetWindowLong(mHwnd, GWL_EXSTYLE));
+		// AdjustWindowRectEx uses system DPI, which is usually the same as mDPI, except if the DPI
+		// of the primary screen has changed since the process started, or if the GUI has been moved.
+		static auto AdjustWindowRectExForDpi = (decltype(&::AdjustWindowRectExForDpi))GetProcAddress(GetModuleHandle(_T("user32.dll")), "AdjustWindowRectExForDpi");
+		if (AdjustWindowRectExForDpi)
+			AdjustWindowRectExForDpi(&rect, style, has_menu, ex_style, mDPI);
+		else
+			AdjustWindowRectEx(&rect, style, has_menu, ex_style);
 		// MSDN: "The AdjustWindowRectEx function does not take the WS_VSCROLL or WS_HSCROLL styles into
 		// account. To account for the scroll bars, call the GetSystemMetrics function with SM_CXVSCROLL
 		// or SM_CYHSCROLL."
@@ -11241,4 +11248,13 @@ void GuiType::RescaleForDPI(int aDPI, RECT &aRect)
 	// A full redraw is needed in some cases to prevent visual glitches, and doesn't
 	// seem useful to avoid in any other case since all of the controls are changing.
 	RedrawWindow(mHwnd, NULL, NULL, RDW_INVALIDATE | RDW_ERASE);
+}
+
+
+
+int GuiType::GetSystemMetrics(int nIndex)
+{
+	static auto metricForDpi = (decltype(&GetSystemMetricsForDpi))GetProcAddress(GetModuleHandle(_T("user32.dll")), "GetSystemMetricsForDpi");
+	// Get the correct metric for this GUI's DPI, if possible; otherwise revert to the DPI-unaware metric.
+	return metricForDpi ? metricForDpi(nIndex, mDPI) : GetSystemMetrics(nIndex);
 }

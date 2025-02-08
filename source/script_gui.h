@@ -711,6 +711,8 @@ public:
 
 	void RescaleForDPI(int aDPI, RECT &aRect);
 
+	int GetSystemMetrics(int nIndex);
+
 protected:
 	bool Delete() override;
 };
