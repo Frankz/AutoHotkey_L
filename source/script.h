@@ -2466,6 +2466,7 @@ public:
 
 	Script();
 	~Script();
+	void DestroyWindows();
 	// Note that the anchors to any linked lists will be lost when this
 	// object goes away, so for now, be sure the destructor is only called
 	// when the program is about to be exited, which will thereby reclaim
