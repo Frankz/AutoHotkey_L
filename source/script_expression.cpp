@@ -509,7 +509,8 @@ LPTSTR Line::ExpandExpression(int aArgIndex, ResultType &aResult, ResultToken *a
 					goto normal_end_skip_output_var; // No need to restore circuit_token because the expression is finished.
 				// Next operation is ":=" and above has verified the target is SYM_VAR and VAR_NORMAL.
 				--stack_count; // STACK_POP;
-				this_token.SetVar(internal_output_var);
+				// Copying var_usage is necessary for cases like IsSet(v:=a.b?) when a.b is a string.
+				this_token.SetVarRef(internal_output_var, done ? VARREF_READ : stack[stack_count]->var_usage);
 				++this_postfix; // We've fully handled the assignment.
 				goto push_this_token;
 			}

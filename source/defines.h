@@ -421,11 +421,11 @@ struct ExprTokenType  // Something in the compiler hates the name TokenType, so 
 		return CopyValueFrom(other); // Currently nothing needs to be done differently.
 	}
 
-	void SetVarRef(Var *aVar)
+	void SetVarRef(Var *aVar, VarRefUsageType aVarUsage = VARREF_REF)
 	{
 		symbol = SYM_VAR;
 		var = aVar;
-		var_usage = VARREF_REF;
+		var_usage = aVarUsage;
 	}
 
 	// Assignments yield a variable using this function so that it can be passed ByRef,
