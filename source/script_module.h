@@ -8,9 +8,10 @@ struct ScriptImport
 	ScriptImport *next = nullptr;
 	LineNumberType line_number = 0;
 	FileIndexType file_index = 0;
+	bool wildcard = false;
 
 	ScriptImport() {}
-	ScriptImport(ScriptModule *aMod) : mod(aMod), names(_T("*")) {}
+	ScriptImport(ScriptModule *aMod) : mod(aMod), names(_T("*")), wildcard(true) {}
 
 	void *operator new(size_t aBytes) {return SimpleHeap::Alloc(aBytes);}
 	void *operator new[](size_t aBytes) {return SimpleHeap::Alloc(aBytes);}

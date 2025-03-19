@@ -64,7 +64,7 @@ Var *Script::FindImportedVar(LPCTSTR aVarName)
 {
 	for (auto imp = CurrentModule()->mImports; imp; imp = imp->next)
 	{
-		if (*imp->names == '*' && imp->mod) // mod can be null during DerefInclude().
+		if (imp->wildcard && imp->mod) // mod can be null during DerefInclude().
 		{
 			auto var = imp->mod->mVars.Find(aVarName);
 			if (var && var->IsExported())
@@ -126,12 +126,17 @@ ResultType Script::ResolveImports(ScriptImport &imp)
 	mCombinedLineNumber = imp.line_number;
 	mCurrFileIndex = imp.file_index;
 
+	LPTSTR cp = imp.names, mod_name, var_name = nullptr, names = nullptr;
 	bool import_file = false;
-	LPTSTR cp = imp.names, mod_name, var_name = nullptr;
 	if (*cp == '{' || *cp == '*')
 	{
 		if (*cp == '{')
+		{
+			names = ++cp;
 			cp = _tcschr(cp, '}'); // Should always be found due to GetLineContExpr().
+		}
+		else
+			imp.wildcard = true;
 		cp = omit_leading_whitespace(cp + 1);
 		if (_tcsnicmp(cp, _T("From"), 4) || !IS_SPACE_OR_TAB(cp[4]))
 			return ScriptError(_T("Invalid import"), imp.names);
@@ -156,9 +161,25 @@ ResultType Script::ResolveImports(ScriptImport &imp)
 	if (*cp) // There's a character after the quote or space which terminates the module name/path.
 	{
 		cp = omit_leading_whitespace(cp);
-		if (_tcsnicmp(cp, _T("as"), 2) || !IS_SPACE_OR_TAB(cp[2]))
+		auto c = *cp;
+		if (!_tcsnicmp(cp, _T("as"), 2) && IS_SPACE_OR_TAB(cp[2]))
+		{
+			var_name = omit_leading_whitespace(cp + 3);
+			if (IS_IDENTIFIER_CHAR(*var_name))
+			{
+				cp = find_identifier_end(var_name);
+				c = *cp;
+				*cp = '\0';
+				while (IS_SPACE_OR_TAB(c)) c = *++cp;
+			}
+		}
+		if (c == '{' && !names)
+			names = cp + 1;
+		else if (c)
+		{
+			*cp = c;
 			return ScriptError(_T("Invalid import"), cp);
-		var_name = omit_leading_whitespace(cp + 3);
+		}
 	}
 	else if (mod_name == imp.names) // `Import M`, not `Import {} from M` or `Import "file"`.
 		var_name = mod_name;
@@ -221,35 +242,44 @@ ResultType Script::ResolveImports(ScriptImport &imp)
 		}
 	}
 
-	if (*imp.names == '{')
+	if (names)
 	{
-		for (cp = imp.names + 1; *(cp = omit_leading_whitespace(cp)) != '}'; ++cp)
+		for (cp = names; *(cp = omit_leading_whitespace(cp)) != '}'; ++cp)
 		{
-			auto c = *(cp = find_identifier_end(var_name = mod_name = cp));
-			*cp = '\0';
-			while (IS_SPACE_OR_TAB(c)) c = *++cp; // Find next non-whitespace.
-			auto exported = imp.mod->mVars.Find(mod_name);
-			if (!exported)
-				return ScriptError(_T("No such export"), mod_name);
-			if (!_tcsnicmp(cp, _T("as"), 2) && IS_SPACE_OR_TAB(cp[2]))
+			TCHAR c;
+			if (*cp == '*')
 			{
-				var_name = omit_leading_whitespace(cp + 3);
-				cp = find_identifier_end(var_name);
-				c = *cp;
+				imp.wildcard = true;
+				c = *(cp = omit_leading_whitespace(cp + 1));
+			}
+			else
+			{
+				c = *(cp = find_identifier_end(var_name = mod_name = cp));
 				*cp = '\0';
 				while (IS_SPACE_OR_TAB(c)) c = *++cp; // Find next non-whitespace.
+				auto exported = imp.mod->mVars.Find(mod_name);
+				if (!exported)
+					return ScriptError(_T("No such export"), mod_name);
+				if (!_tcsnicmp(cp, _T("as"), 2) && IS_SPACE_OR_TAB(cp[2]))
+				{
+					var_name = omit_leading_whitespace(cp + 3);
+					cp = find_identifier_end(var_name);
+					c = *cp;
+					*cp = '\0';
+					while (IS_SPACE_OR_TAB(c)) c = *++cp; // Find next non-whitespace.
+				}
+				auto imported = AddNewImportVar(var_name);
+				if (!imported)
+					return FAIL;
+				imported->UpdateAlias(exported); // See the other UpdateAlias call above for comments.
 			}
-			if (!(c == ',' || c == '}'))
+			if (c == '}')
+				break;
+			if (c != ',')
 			{
 				*cp = c;
 				return ScriptError(_T("Invalid import"), cp);
 			}
-			auto imported = AddNewImportVar(var_name);
-			if (!imported)
-				return FAIL;
-			imported->UpdateAlias(exported); // See the other UpdateAlias call above for comments.
-			if (c == '}')
-				break;
 		}
 	}
 
