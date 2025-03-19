@@ -154,7 +154,9 @@ ResultType Script::ResolveImports(ScriptImport &imp)
 	else
 	{
 		mod_name = cp;
-		while (*cp && !IS_SPACE_OR_TAB(*cp)) ++cp;
+		cp = find_identifier_end(cp);
+		if (cp == mod_name || *cp && !IS_SPACE_OR_TAB(*cp))
+			return ScriptError(_T("Invalid import"), imp.names);
 		if (*cp)
 			*cp++ = '\0';
 	}
