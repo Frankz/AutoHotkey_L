@@ -1593,14 +1593,10 @@ bool ClassHasOpenBrace(LPTSTR aBuf, size_t aBufLength, LPTSTR aNextBuf, size_t &
 
 
 
-ResultType Script::OpenIncludedFile(TextStream *&ts, LPCTSTR aFileSpec, bool aAllowDuplicateInclude, bool aIgnoreLoadFailure)
-// Open the included file.  Returns CONDITION_TRUE if the file is to
-// be loaded, otherwise OK (duplicate/already loaded) or FAIL (error).
-// See "full_path" below for why this is separate to LoadIncludedFile().  
+ResultType Script::SourceFileIndex(LPCTSTR aFileSpec, FileIndexType &aFileIndex)
 {
-#ifndef AUTOHOTKEYSC
-	if (!aFileSpec || !*aFileSpec) return FAIL;
-
+	// This is done first for simplicity, even though aFileSpec may already have
+	// an index, because it needs to be done prior to adding mFileSpec (index 0).
 	if (Line::sSourceFileCount >= Line::sMaxSourceFiles)
 	{
 		if (Line::sSourceFileCount >= ABSOLUTE_MAX_SOURCE_FILES)
@@ -1632,34 +1628,51 @@ ResultType Script::OpenIncludedFile(TextStream *&ts, LPCTSTR aFileSpec, bool aAl
 	// allocate the required stack space on entry to the function.
 	TCHAR full_path[T_MAX_PATH];
 
-	int source_file_index = Line::sSourceFileCount;
-	bool is_first_source_file = !source_file_index;
-	if (is_first_source_file && *aFileSpec != '*')
-		// Since this is the first source file, it must be the main script file.  Just point it to the
-		// location of the filespec already dynamically allocated:
-		Line::sSourceFile[source_file_index] = mFileSpec;
-	else
+	// Get the full path in case aFileSpec has a relative path.
+	LPTSTR filename_marker;
+	if (*aFileSpec == '*')
 	{
-		// Get the full path in case aFileSpec has a relative path.  This is done so that duplicates
-		// can be reliably detected (we only want to avoid including a given file more than once):
-		LPTSTR filename_marker;
-		if (*aFileSpec == '*')
-		{
-			tcslcpy(full_path, aFileSpec, _countof(full_path));
-			CharUpper(full_path); // Resource names must be upper-case.
-		}
-		else
-			GetFullPathName(aFileSpec, _countof(full_path), full_path, &filename_marker);
-		// Check if this file was already included.  If so, it's not an error because we want
-		// to support automatic "include once" behavior.  So ignore repeats if requested by the
-		// caller, otherwise reuse the file index and allocated path:
-		for (source_file_index = 0; source_file_index < Line::sSourceFileCount; ++source_file_index)
-			if (!ostrcmpi(Line::sSourceFile[source_file_index], full_path)) // Case insensitive like the file system (e.g. "Ä" == "ä" in the NTFS).
-				break;
-		// The path is copied into persistent memory further below, after the file has been opened,
-		// in case the opening fails and aIgnoreLoadFailure==true.  Initialize for the check below.
-		Line::sSourceFile[Line::sSourceFileCount] = NULL;
+		tcslcpy(full_path, aFileSpec, _countof(full_path));
 	}
+	else if (!Line::sSourceFileCount)
+	{
+		// Since this is the first source file, it must be the main script file.
+		// Just point it to the location of the filespec already allocated:
+		Line::sSourceFile[aFileIndex = Line::sSourceFileCount++] = mFileSpec;
+		return OK;
+	}
+	else
+		GetFullPathName(aFileSpec, _countof(full_path), full_path, &filename_marker);
+	
+	// Check if this file already has an index assigned.
+	for (int i = Line::sSourceFileCount - 1; i >= 0; --i)
+		if (!ostrcmpi(Line::sSourceFile[i], full_path)) // Case insensitive like the file system (e.g. "Ä" == "ä" in the NTFS).
+		{
+			aFileIndex = i;
+			return OK;
+		}
+
+	// This file might ultimately not be loaded if the *i flag was used, but saving a
+	// small amount of memory in that case seems not worth complicating the logic here.
+	Line::sSourceFile[aFileIndex = Line::sSourceFileCount++] = SimpleHeap::Alloc(full_path);
+	return OK;
+}
+
+
+
+ResultType Script::OpenIncludedFile(TextStream *&ts, LPCTSTR aFileSpec, bool aAllowDuplicateInclude, bool aIgnoreLoadFailure)
+// Open the included file.  Returns CONDITION_TRUE if the file is to
+// be loaded, otherwise OK (duplicate/already loaded) or FAIL (error).
+// See "full_path" below for why this is separate to LoadIncludedFile().  
+{
+#ifndef AUTOHOTKEYSC
+	if (!aFileSpec || !*aFileSpec) return FAIL;
+
+	bool is_first_source_file = !Line::sSourceFileCount;
+
+	FileIndexType source_file_index;
+	if (!SourceFileIndex(aFileSpec, source_file_index))
+		return FAIL;
 
 	bool is_duplicate = mCurrentModule->HasFileIndex(source_file_index);
 	if (is_duplicate && !aAllowDuplicateInclude)
@@ -1694,11 +1707,6 @@ ResultType Script::OpenIncludedFile(TextStream *&ts, LPCTSTR aFileSpec, bool aAl
 		return ScriptError(msg_text);
 	}
 	
-	// This is done only after the file has been successfully opened in case aIgnoreLoadFailure==true:
-	if (!Line::sSourceFile[source_file_index])
-		Line::sSourceFile[source_file_index] = SimpleHeap::Alloc(full_path);
-	if (source_file_index == Line::sSourceFileCount)
-		++Line::sSourceFileCount;
 	if (!is_duplicate)
 		if (!mCurrentModule->AddFileIndex(source_file_index))
 			return FAIL;
@@ -1724,6 +1732,7 @@ ResultType Script::OpenIncludedFile(TextStream *&ts, LPCTSTR aFileSpec, bool aAl
 	// succeeds even for a root drive like C: that lacks a backslash (see SetWorkingDir() for details).
 	if (source_file_index)
 	{
+		auto full_path = Line::sSourceFile[source_file_index];
 		LPTSTR terminate_here = _tcsrchr(full_path, '\\');
 		if (terminate_here > full_path)
 		{
@@ -11980,7 +11989,7 @@ ResultType Line::PerformAssign()
 
 
 
-ResultType Script::DerefInclude(LPTSTR &aOutput, LPTSTR aBuf)
+ResultType Script::DerefInclude(LPTSTR &aOutput, LPCTSTR aBuf)
 // For #Include, #IncludeAgain and #DllLoad.
 // Based on Line::Deref above, but with a few differences for backward-compatibility:
 //  1) Percent signs that aren't part of a valid deref are not omitted.
@@ -11992,7 +12001,8 @@ ResultType Script::DerefInclude(LPTSTR &aOutput, LPTSTR aBuf)
 
 	VarSizeType expanded_length;
 	size_t var_name_length;
-	LPTSTR cp, cp1, dest;
+	LPCTSTR cp, cp1;
+	LPTSTR dest;
 
 	// Do two passes:
 	// #1: Calculate the space needed.

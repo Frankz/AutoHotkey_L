@@ -64,7 +64,7 @@ Var *Script::FindImportedVar(LPCTSTR aVarName)
 {
 	for (auto imp = CurrentModule()->mImports; imp; imp = imp->next)
 	{
-		if (*imp->names == '*')
+		if (*imp->names == '*' && imp->mod) // mod can be null during DerefInclude().
 		{
 			auto var = imp->mod->mVars.Find(aVarName);
 			if (var && var->IsExported())
@@ -154,8 +154,13 @@ ResultType Script::ResolveImports(ScriptImport &imp)
 	int at;
 	if (  !(imp.mod = mModules.Find(mod_name, &at))  )
 	{
-		if (auto path = FindLibraryFile(mod_name, _tcslen(mod_name), true))
+		FileIndexType file_index;
+		switch (FindModuleFileIndex(mod_name, file_index))
 		{
+		default:	return ScriptError(_T("Module not found"), mod_name);
+		case FAIL:	return FAIL;
+		case OK:
+			auto path = Line::sSourceFile[file_index];
 			auto cur_mod = mCurrentModule;
 			auto last_mod = mLastModule;
 			mLastModule = nullptr; // Start a new chain.
@@ -171,8 +176,6 @@ ResultType Script::ResolveImports(ScriptImport &imp)
 			imp.mod->mPrev = last_mod; // Join to previous chain.
 			mCurrentModule = cur_mod;
 		}
-		else
-			return ScriptError(_T("Module not found"), mod_name);
 	}
 
 	if (var_name)
@@ -283,4 +286,92 @@ IObject *ScriptModule::FindGlobalObject(LPCTSTR aName)
 		return var->ToObject();
 	}
 	return nullptr;
+}
+
+
+LPCWSTR Script::InitModuleSearchPath()
+{
+	SetCurrentDirectory(mFileDir);
+
+	// The size of this array sets the total limit for the entire list of directories, resolved to full paths.
+	// This is enough for extreme cases, up to the total limit for all environment variables (32767 chars).
+	TCHAR buf[MAX_WIDE_PATH], var_buf[MAX_WIDE_PATH];
+	LPTSTR d, cp = buf;
+	LPCTSTR path_spec;
+	DWORD len, space;
+
+	if (GetEnvironmentVariable(L"AhkImportPath", var_buf, _countof(var_buf)))
+		path_spec = var_buf;
+	else
+		path_spec = _T(".;%A_MyDocuments%\\AutoHotkey;%A_AhkPath%\\..");
+
+	LPTSTR deref_path;
+	if (!DerefInclude(deref_path, path_spec))
+		return _T("");
+
+	for (auto p = deref_path; *p; p = d + 1)
+	{
+		while (*p == ';') ++p;
+		for (d = p; *d && *d != ';'; ++d);
+		if (d == p // Empty item at the end.
+			|| (cp - buf) + (d - p) + 1 > _countof(buf)) // Due to rarity, ignore any items that won't fit.
+			break;
+		*d = '\0'; // Terminate within deref_path.
+		space = (DWORD)(_countof(buf) - (cp - buf));
+		len = GetFullPathName(p, space, cp, nullptr);
+		if (!len || len >= space)
+			continue; // Ignore this item.
+		cp += len + 1; // Write the next item after the null terminator.
+	}
+	if (cp == buf) // No items; could happen in the case of a malformed env var.
+		*cp++ = '\0'; // Ensure double-null termination.
+	
+	free(deref_path);
+	return SimpleHeap::Alloc(buf, cp - buf);
+}
+
+
+ResultType Script::FindModuleFileIndex(LPCTSTR aName, FileIndexType &aFileIndex)
+{
+	static auto search_path = InitModuleSearchPath();
+	const auto suffix = EXT_AUTOHOTKEY;
+	const auto suffix_length = _countof(EXT_AUTOHOTKEY) - 1;
+	const auto dir_suffix = _T("\\__Init") EXT_AUTOHOTKEY;
+	const auto dir_suffix_length = _countof(_T("\\__Init") EXT_AUTOHOTKEY) - 1;
+
+	TCHAR buf[T_MAX_PATH];
+	
+	auto name_length = _tcslen(aName);
+	if (name_length + dir_suffix_length >= _countof(buf))
+		return CONDITION_FALSE;
+
+	DWORD attr;
+	size_t dir_length;
+	for (auto dir = search_path; *dir; dir += dir_length + 1)
+	{
+		dir_length = _tcslen(dir);
+		if (!SetCurrentDirectory(dir))
+			continue; // Ignore this item.
+
+		tmemcpy(buf, aName, name_length + 1);
+
+		// Try exact aName first.
+		attr = GetFileAttributes(buf);
+		auto p = buf + name_length;
+		if ((attr & FILE_ATTRIBUTE_DIRECTORY) && attr != INVALID_FILE_ATTRIBUTES)
+		{
+			// Try aName\__module.ahk.
+			tmemcpy(p, dir_suffix, dir_suffix_length + 1);
+			attr = GetFileAttributes(buf);
+		}
+		if (attr & FILE_ATTRIBUTE_DIRECTORY) // No file found yet.
+		{
+			// Try aName.ahk.
+			tmemcpy(p, suffix, suffix_length + 1);
+			attr = GetFileAttributes(buf);
+		}
+		if ((attr & FILE_ATTRIBUTE_DIRECTORY) == 0) // File exists and is not a directory.
+			return SourceFileIndex(buf, aFileIndex);
+	}
+	return CONDITION_FALSE;
 }

@@ -2314,6 +2314,7 @@ public:
 	ResultType LoadIncludedFile(LPCTSTR aFileSpec, bool aAllowDuplicateInclude, bool aIgnoreLoadFailure);
 	ResultType LoadIncludedFile(TextStream *fp);
 	ResultType ParseRemap(LPCTSTR aSource, vk_type remap_dest_vk, LPCTSTR aDestName, LPCTSTR aDestMods);
+	ResultType SourceFileIndex(LPCTSTR aFileSpec, FileIndexType &aFileIndex);
 	ResultType OpenIncludedFile(TextStream *&ts, LPCTSTR aFileSpec, bool aAllowDuplicateInclude, bool aIgnoreLoadFailure);
 	LineNumberType CurrentLine();
 	LPTSTR CurrentFile();
@@ -2341,6 +2342,8 @@ public:
 	void InitFuncLibraries(FuncLibrary aLibs[]);
 	void InitFuncLibrary(FuncLibrary &aLib, LPTSTR aPathBase, LPTSTR aPathSuffix);
 	LPTSTR FindLibraryFile(LPTSTR aName, size_t aNameLength, bool aIsModule = false);
+	LPCWSTR InitModuleSearchPath();
+	ResultType FindModuleFileIndex(LPCTSTR aName, FileIndexType &aFileIndex);
 #endif
 	IObject *GetBuiltinObject(LPCTSTR aName);
 	static Func *GetBuiltInFunc(LPCTSTR aFuncName);
@@ -2389,7 +2392,7 @@ public:
 	Var *AddNewImportVar(LPTSTR aVarName);
 	Var *FindImportedVar(LPCTSTR aVarName);
 
-	ResultType DerefInclude(LPTSTR &aOutput, LPTSTR aBuf);
+	ResultType DerefInclude(LPTSTR &aOutput, LPCTSTR aBuf);
 
 	WinGroup *FindGroup(LPCTSTR aGroupName, bool aCreateIfNotFound = false);
 	ResultType AddGroup(LPCTSTR aGroupName);
