@@ -31,6 +31,7 @@ public:
 	Var *mSelf = nullptr;
 	UnresolvedBaseClass *mUnresolvedBaseClass = nullptr;
 	FileIndexType *mFiles = nullptr, mFilesCount = 0, mFilesCountMax = 0;
+	FileIndexType mSelfFileIndex = ABSOLUTE_MAX_SOURCE_FILES;
 	bool mExecuted = false;
 	bool mIsBuiltinModule = false;
 

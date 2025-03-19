@@ -126,6 +126,7 @@ ResultType Script::ResolveImports(ScriptImport &imp)
 	mCombinedLineNumber = imp.line_number;
 	mCurrFileIndex = imp.file_index;
 
+	bool import_file = false;
 	LPTSTR cp = imp.names, mod_name, var_name = nullptr;
 	if (*cp == '{' || *cp == '*')
 	{
@@ -135,21 +136,32 @@ ResultType Script::ResolveImports(ScriptImport &imp)
 		if (_tcsnicmp(cp, _T("From"), 4) || !IS_SPACE_OR_TAB(cp[4]))
 			return ScriptError(_T("Invalid import"), imp.names);
 		cp = omit_leading_whitespace(cp + 5);
-		mod_name = cp;
 	}
+	if (import_file = (*cp == '"' || *cp == '\''))
+	{
+		mod_name = cp + 1;
+		cp += FindTextDelim(cp, *cp, 1);
+		if (!*cp || cp[1] && !IS_SPACE_OR_TAB(cp[1]))
+			return ScriptError(_T("Invalid import"), imp.names);
+		*cp++ = '\0';
+		ConvertEscapeSequences(mod_name);
+  	}
 	else
 	{
-		var_name = mod_name = cp;
+		mod_name = cp;
 		while (*cp && !IS_SPACE_OR_TAB(*cp)) ++cp;
 		if (*cp)
-		{
-			*cp = '\0';
-			cp = omit_leading_whitespace(cp + 1);
-			if (_tcsnicmp(cp, _T("as"), 2) || !IS_SPACE_OR_TAB(cp[2]))
-				return ScriptError(_T("Invalid import"), imp.names);
-			var_name = omit_leading_whitespace(cp + 3);
-		}
+			*cp++ = '\0';
 	}
+	if (*cp) // There's a character after the quote or space which terminates the module name/path.
+	{
+		cp = omit_leading_whitespace(cp);
+		if (_tcsnicmp(cp, _T("as"), 2) || !IS_SPACE_OR_TAB(cp[2]))
+			return ScriptError(_T("Invalid import"), cp);
+		var_name = omit_leading_whitespace(cp + 3);
+	}
+	else if (mod_name == imp.names) // `Import M`, not `Import {} from M` or `Import "file"`.
+		var_name = mod_name;
 
 	int at;
 	if (  !(imp.mod = mModules.Find(mod_name, &at))  )
@@ -159,12 +171,23 @@ ResultType Script::ResolveImports(ScriptImport &imp)
 		{
 		default:	return ScriptError(_T("Module not found"), mod_name);
 		case FAIL:	return FAIL;
-		case OK:
+		case OK:	break;
+		}
+		// Search by file index in case of two different paths referring to the same file.
+		for (int i = 0; i < mModules.mCount; ++i)
+			if (mModules.mItem[i]->mSelfFileIndex == file_index)
+			{
+				imp.mod = mModules.mItem[i];
+				break;
+			}
+		if (!imp.mod)
+		{
 			auto path = Line::sSourceFile[file_index];
 			auto cur_mod = mCurrentModule;
 			auto last_mod = mLastModule;
 			mLastModule = nullptr; // Start a new chain.
 			imp.mod = mCurrentModule = new ScriptModule(mod_name);
+			imp.mod->mSelfFileIndex = file_index;
 			if (!mModules.Insert(imp.mod, at))
 				return MemoryError();
 			if (!LoadIncludedFile(path, false, false))
