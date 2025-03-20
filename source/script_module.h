@@ -9,6 +9,7 @@ struct ScriptImport
 	LineNumberType line_number = 0;
 	FileIndexType file_index = 0;
 	bool wildcard = false;
+	bool is_export = false;
 
 	ScriptImport() {}
 	ScriptImport(ScriptModule *aMod) : mod(aMod), names(_T("*")), wildcard(true) {}

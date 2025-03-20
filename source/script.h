@@ -2385,7 +2385,7 @@ public:
 	
 	ScriptModule *CurrentModule() { return g->CurrentFunc ? g->CurrentFunc->mModule : mCurrentModule; }
 	ResultType ParseModuleDirective(LPCTSTR aName);
-	ResultType ParseImportStatement(LPTSTR aBuf);
+	bool ParseImportStatement(LPTSTR aBuf);
 	ResultType CloseCurrentModule();
 	ResultType ResolveImports();
 	ResultType ResolveImports(ScriptImport &aImport);

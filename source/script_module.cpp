@@ -46,17 +46,23 @@ ResultType Script::ParseModuleDirective(LPCTSTR aName)
 }
 
 
-ResultType Script::ParseImportStatement(LPTSTR aBuf)
+bool Script::ParseImportStatement(LPTSTR aBuf)
 {
-	aBuf = omit_leading_whitespace(aBuf);
+	bool is_export = !_tcsnicmp(aBuf, _T("Export"), 6) && IS_SPACE_OR_TAB(aBuf[6]);
+	if (is_export)
+		aBuf = omit_leading_whitespace(aBuf + 7);
+	if (  !(!_tcsnicmp(aBuf, _T("Import"), 6) && IS_SPACE_OR_TAB(aBuf[6]))  )
+		return false;
+	aBuf = omit_leading_whitespace(aBuf + 7);
 	auto imp = new ScriptImport();
 	imp->names = SimpleHeap::Alloc(aBuf);
 	imp->mod = nullptr;
+	imp->is_export = is_export;
 	imp->line_number = mCombinedLineNumber;
 	imp->file_index = mCurrFileIndex;
 	imp->next = mCurrentModule->mImports;
 	mCurrentModule->mImports = imp;
-	return OK;
+	return true;
 }
 
 
@@ -242,6 +248,8 @@ ResultType Script::ResolveImports(ScriptImport &imp)
 			var->Assign(imp.mod);
 			var->MakeReadOnly();
 		}
+		if (imp.is_export)
+			var->Scope() |= VAR_EXPORTED;
 	}
 
 	if (names)
@@ -274,6 +282,8 @@ ResultType Script::ResolveImports(ScriptImport &imp)
 				if (!imported)
 					return FAIL;
 				imported->UpdateAlias(exported); // See the other UpdateAlias call above for comments.
+				if (imp.is_export)
+					imported->Scope() |= VAR_EXPORTED;
 			}
 			if (c == '}')
 				break;

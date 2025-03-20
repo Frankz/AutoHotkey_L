@@ -2428,10 +2428,8 @@ process_completed_line:
 				return FAIL;
 			goto continue_main_loop;
 		}
-		else if (!mLineParent && !_tcsnicmp(buf, _T("Import"), 6) && IS_SPACE_OR_TAB(buf[6]))
+		else if (!mLineParent && ParseImportStatement(buf))
 		{
-			if (!ParseImportStatement(buf + 7))
-				return FAIL;
 			goto continue_main_loop;
 		}
 
