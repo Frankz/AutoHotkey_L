@@ -91,12 +91,13 @@ Var *Script::AddNewImportVar(LPTSTR aVarName)
 	auto var = mCurrentModule->mVars.Find(aVarName, &at);
 	if (var)
 	{
-		// Only declared, assigned or exported variables should exist at this point.
-		if (var->IsDeclared() || var->IsAssignedSomewhere())
+		// mVars should contain only declared or exported variables at this point.
+		if (var->IsDeclared())
 		{
 			ConflictingDeclarationError(_T("Import"), var);
 			return nullptr;
 		}
+		ASSERT(!var->IsAssignedSomewhere());
 		var->Scope() |= VAR_DECLARED;
 	}
 	else
