@@ -398,6 +398,9 @@ LPCWSTR Script::InitModuleSearchPath()
 
 ResultType Script::FindModuleFileIndex(LPCTSTR aName, FileIndexType &aFileIndex)
 {
+	if (*aName == '*') // *Resource name or stdin.
+		return SourceFileIndex(aName, aFileIndex);
+
 	static auto search_path = InitModuleSearchPath();
 	const auto suffix = EXT_AUTOHOTKEY;
 	const auto suffix_length = _countof(EXT_AUTOHOTKEY) - 1;
