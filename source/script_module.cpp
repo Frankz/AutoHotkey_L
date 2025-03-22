@@ -296,6 +296,9 @@ ResultType Script::ResolveImports(ScriptImport &imp)
 		}
 	}
 
+	if (imp.is_export && imp.wildcard)
+		return ScriptError(_T("Cannot export *"));
+
 	return OK;
 }
 
