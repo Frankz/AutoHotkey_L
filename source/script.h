@@ -1435,7 +1435,7 @@ class DECLSPEC_NOVTABLE Func : public Object
 public:
 	LPCTSTR mName;
 	int mParamCount = 0; // The function's maximum number of parameters.  For UDFs, also the number of items in the mParam array.
-	int mMinParams = 0;  // The number of mandatory parameters (populated for both UDFs and built-in's).
+	int mMinParams = 0;  // The index of the last mandatory parameter (populated for both UDFs and built-in's).
 	bool mIsVariadic = false; // Whether to allow mParamCount to be exceeded.
 
 #ifdef CONFIG_DLL
@@ -1514,6 +1514,11 @@ public:
 	bool ArgIsOutputVar(int aArg) override
 	{
 		return aArg < mParamCount && mParam[aArg].is_byref;
+	}
+
+	bool ArgIsOptional(int aArg) override
+	{
+		return aArg >= mParamCount || mParam[aArg].default_type != PARAM_DEFAULT_NONE;
 	}
 
 	// Find a local (not global or nonlocal/outer) variable.

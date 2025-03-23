@@ -5834,7 +5834,6 @@ ResultType Script::DefineFunc(LPTSTR aBuf, bool aStatic, FuncDefType aIsInExpres
 	FuncParam param[MAX_FUNCTION_PARAMS];
 	int param_count = 0;
 	TCHAR buf[LINE_SIZE];
-	bool param_must_have_default = false;
 	bool at_least_one_default_expr = false;
 	LPCTSTR saved_pending_hotkey;
 
@@ -6003,22 +6002,18 @@ ResultType Script::DefineFunc(LPTSTR aBuf, bool aStatic, FuncDefType aIsInExpres
 				}
 				param_end = param_start + value_length;
 			}
-			param_must_have_default = true;  // For now, all other params after this one must also have default values.
 			// Set up for the next iteration:
 			param_start = omit_leading_whitespace(param_end);
 		}
 		else if (*param_start == '?')
 		{
 			this_param.default_type = PARAM_DEFAULT_UNSET;
-			param_must_have_default = true;  // For now, all other params after this one must also have default values.
 			// Set up for the next iteration:
 			param_start = omit_leading_whitespace(param_start + 1);
 		}
 		else // This parameter does not have a default value specified.
 		{
-			if (param_must_have_default)
-				return ScriptError(_T("Parameter default required."), this_param.var->mName);
-			++func.mMinParams;
+			func.mMinParams = param_count + 1;
 		}
 		++param_count;
 
@@ -7588,9 +7583,10 @@ ResultType Script::PreparseExpressions(FuncList &aFuncs)
 		// Now that expressions have been preparsed, remove any parameter default expressions
 		// from the normal flow of execution by adjusting the function's mJumpToLine.  (This
 		// wasn't done earlier because the original value is needed above.)
-		if (mLastParamInitializer && func.mMinParams < func.mParamCount)
+		if (mLastParamInitializer)
 		{
-			for (int i = func.mParamCount; --i >= func.mMinParams; )
+			// Search to back to 0 even if mMinParams > 0, for cases like F(a:=b(), c).
+			for (int i = func.mParamCount; --i >= 0; )
 			{
 				if (func.mParam[i].default_type == PARAM_DEFAULT_EXPR)
 				{
