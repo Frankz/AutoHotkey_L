@@ -284,36 +284,6 @@ inline size_t rtrim(LPTSTR aStr, size_t aLength = -1)
 	}
 }
 
-inline void rtrim_literal(LPTSTR aStr, TCHAR aLiteralMap[])
-// Caller must ensure that aStr is not NULL.
-// NOTE: THIS VERSION trims only tabs and spaces which aren't marked as literal (so not "`t" or "` ").
-// It specifically avoids trimming newlines because some callers want to retain those.
-{
-	if (!*aStr) return; // The below relies upon this check having been done.
-	// It's done this way in case aStr just happens to be address 0x00 (probably not possible
-	// on Intel & Intel-clone hardware) because otherwise --cp would decrement, causing an
-	// underflow since pointers are probably considered unsigned values, which would
-	// probably cause an infinite loop.  Extremely unlikely, but might as well try
-	// to be thorough:
-	for (size_t last = _tcslen(aStr) - 1; ; --last)
-	{
-		if (!IS_SPACE_OR_TAB(aStr[last]) || aLiteralMap[last]) // It's not a space or tab, or it's a literal one.
-		{
-			aStr[last + 1] = '\0';
-			return;
-		}
-		// Otherwise, it is a space or tab...
-		if (last == 0) // ... and we're now at the first character of the string...
-		{
-			if (IS_SPACE_OR_TAB(aStr[last])) // ... and that first character is also a space or tab...
-				*aStr = '\0'; // ... so the entire string is made empty.
-			return; // ... and we return in any case.
-		}
-		// else it's a space or tab, and there are still more characters to check.  Let the loop
-		// do its decrements.
-	}
-}
-
 inline size_t rtrim_with_nbsp(LPTSTR aStr, size_t aLength = -1)
 // Returns the new length of the string.
 // Caller must ensure that aStr is not NULL.
@@ -750,8 +720,8 @@ LPTSTR ConvertEscapeSequences(LPCTSTR aSrc, size_t aSrcLen, size_t &aDestLen)
 	return ConvertEscapeSequences(dst, aDestLen + 1, aSrc, aSrcLen);
 }
 
-int FindExprDelim(LPCTSTR aBuf, TCHAR aDelimiter = ',', int aStartIndex = 0, LPCTSTR aLiteralMap = NULL);
-int FindTextDelim(LPCTSTR aBuf, TCHAR aDelimiter = ',', int aStartIndex = 0, LPCTSTR aLiteralMap = NULL);
+int FindExprDelim(LPCTSTR aBuf, TCHAR aDelimiter = ',', int aStartIndex = 0);
+int FindTextDelim(LPCTSTR aBuf, TCHAR aDelimiter = ',', int aStartIndex = 0);
 #define MAX_BALANCEEXPR_DEPTH 100 // The maximum depth at which BalanceExpr() can validate symbols (the size of aExpect[]).
 int BalanceExpr(LPCTSTR aBuf, int aStartBalance, TCHAR aExpect[], TCHAR *aOpenQuote = NULL);
 int BalanceExpr(LPCTSTR aBuf);

@@ -2980,7 +2980,7 @@ bool CharIsEscaped(LPCTSTR aChar, LPCTSTR aBuf)
 
 
 
-int FindExprDelim(LPCTSTR aBuf, TCHAR aDelimiter, int aStartIndex, LPCTSTR aLiteralMap)
+int FindExprDelim(LPCTSTR aBuf, TCHAR aDelimiter, int aStartIndex)
 // Returns the index of the next delimiter, taking into account quotes, parentheses, etc.
 // If the delimiter is not found, returns the length of aBuf.
 {
@@ -2996,12 +2996,12 @@ int FindExprDelim(LPCTSTR aBuf, TCHAR aDelimiter, int aStartIndex, LPCTSTR aLite
 			// index of the null-terminator since that's typically what the caller wants.
 			return mark;
 		default:
-		//case '`': // May indicate an attempt to escape something when aLiteralMap==NULL, but has escape has no meaning here.
+		//case '`': // May indicate an attempt to escape something, but has escape has no meaning here.
 			// Not a meaningful character; just have the loop skip over it.
 			continue;
 		case '"': 
 		case '\'':
-			mark = FindTextDelim(aBuf, aBuf[mark], mark + 1, aLiteralMap);
+			mark = FindTextDelim(aBuf, aBuf[mark], mark + 1);
 			if (!aBuf[mark]) // i.e. it isn't safe to do ++mark.
 				return mark; // See case '\0' for comments.
 			continue;
@@ -3048,7 +3048,7 @@ int FindExprDelim(LPCTSTR aBuf, TCHAR aDelimiter, int aStartIndex, LPCTSTR aLite
 			}
 			// Scan for the corresponding ':' (or some other closing symbol if that's missing)
 			// so that it won't terminate the sub-expression.
-			mark = FindExprDelim(aBuf, ':', mark, aLiteralMap);
+			mark = FindExprDelim(aBuf, ':', mark);
 			if (!aBuf[mark]) // i.e. it isn't safe to do ++mark.
 				return mark; // See case '\0' for comments.
 			continue; // The colon is also skipped via the loop's increment.
@@ -3062,7 +3062,7 @@ int FindExprDelim(LPCTSTR aBuf, TCHAR aDelimiter, int aStartIndex, LPCTSTR aLite
 		case '{': close_char = '}'; break;
 		}
 		// Since above didn't "return" or "continue":
-		mark = FindExprDelim(aBuf, close_char, mark + 1, aLiteralMap);
+		mark = FindExprDelim(aBuf, close_char, mark + 1);
 		if (!aBuf[mark]) // i.e. it isn't safe to do ++mark.
 			return mark; // See case '\0' for comments.
 		// Otherwise, continue the loop.
@@ -3071,16 +3071,12 @@ int FindExprDelim(LPCTSTR aBuf, TCHAR aDelimiter, int aStartIndex, LPCTSTR aLite
 
 
 
-int FindTextDelim(LPCTSTR aBuf, TCHAR aDelimiter, int aStartIndex, LPCTSTR aLiteralMap)
+int FindTextDelim(LPCTSTR aBuf, TCHAR aDelimiter, int aStartIndex)
 {
 	for (int mark = aStartIndex; ; ++mark)
 	{
 		if (aBuf[mark] == aDelimiter)
-		{
-			if (aLiteralMap && aLiteralMap[mark])
-				continue;
 			return mark;
-		}
 		switch (aBuf[mark])
 		{
 		case '\0':
@@ -3090,7 +3086,7 @@ int FindTextDelim(LPCTSTR aBuf, TCHAR aDelimiter, int aStartIndex, LPCTSTR aLite
 		case '`':
 			// This allows g_DerefChar or aDelimiter to be escaped, but since every other non-null
 			// character has no meaning here, it doesn't need to check which character it is skipping.
-			if (!aLiteralMap && aBuf[mark+1])
+			if (aBuf[mark+1])
 				++mark;
  			continue;
 		}
