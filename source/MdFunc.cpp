@@ -122,7 +122,7 @@ MdFunc::MdFunc(LPCTSTR aName, void *aMcFunc, MdType aRetType, MdType *aArg, UINT
 		{
 			ASSERT(!mIsVariadic);
 			++pc;
-			if (!opt && pc - 1 == mMinParams)
+			if (!opt)
 				mMinParams = pc;
 			if (aArg[i] == MdType::Variant && out != MdType::Void)
 				++mMaxResultTokens;
