@@ -310,6 +310,9 @@ ResultType Script::CloseCurrentModule()
 	if (!AddLine(ACT_EXIT))
 		return FAIL;
 
+	// Reset this so #HotIf doesn't carry across into the next module.
+	g->HotCriterion = nullptr;
+
 	mCurrentModule->mPrev = mLastModule;
 	mLastModule = mCurrentModule;
 
