@@ -1311,11 +1311,8 @@ bool MsgSleep(int aSleepDuration, MessageMode aMode)
 			{
 				// Check for messages once more in case the subroutine that just completed
 				// above didn't check them that recently.  This is done to minimize the time
-				// our thread spends *not* pumping messages, which in turn minimizes keyboard
-				// and mouse lag if the hooks are installed (even though this is no longer
-				// true due to v1.0.39's dedicated hook thread, it seems best to continue this
-				// practice to maximize responsiveness of hotkeys, the app itself [e.g. tray
-				// menu], and also to retain backward compatibility).  Set the state of this
+				// our thread spends *not* pumping messages, which may maximize responsiveness
+				// of hotkeys and the app itself (e.g. tray menu).  Set the state of this
 				// function/layer/instance so that it will use peek-mode.  UPDATE: Don't change
 				// the value of aSleepDuration to -1 because IsCycleComplete() needs to know the
 				// original sleep time specified by the caller to determine whether
