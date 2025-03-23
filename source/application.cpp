@@ -174,7 +174,7 @@ bool MsgSleep(int aSleepDuration, MessageMode aMode)
 	// This policy simplifies ExecUntil() and long-running commands such as FileSetAttrib.
 	// UPDATE #3: Use aMode == RETURN_AFTER_MESSAGES, not g_nThreads > 0, because the
 	// "Edit This Script" menu item (and possibly other places) might result in an indirect
-	// call to us and we will need the timer to avoid getting stuck in the GetMessageState()
+	// call to us and we will need the timer to avoid getting stuck in GetMessage()
 	// with hotkeys being disallowed due to filtering:
 	bool this_layer_needs_timer = (aSleepDuration > 0 && aMode == RETURN_AFTER_MESSAGES);
 	if (this_layer_needs_timer)
