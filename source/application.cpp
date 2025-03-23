@@ -227,17 +227,11 @@ bool MsgSleep(int aSleepDuration, MessageMode aMode)
 	{
 		if (aSleepDuration > 0 && !empty_the_queue_via_peek && !g_DeferMessagesForUnderlyingPump) // g_Defer: Requires a series of Peeks to handle non-contiguous ranges, which is why GetMessage() can't be used.
 		{
-			// The following comment is mostly obsolete as of v1.0.39 (which introduces a thread
-			// dedicated to the hooks).  However, using GetMessage() is still superior to
-			// PeekMessage() for performance reason.  Add to that the risk of breaking things
-			// and it seems clear that it's best to retain GetMessage().
-			// Older comment:
-			// Use GetMessage() whenever possible -- rather than PeekMessage() or a technique such
-			// MsgWaitForMultipleObjects() -- because it's the "engine" that passes all keyboard
-			// and mouse events immediately to the low-level keyboard and mouse hooks
-			// (if they're installed).  Otherwise, there's greater risk of keyboard/mouse lag.
-			// PeekMessage(), depending on how, and how often it's called, will also do this, but
-			// I'm not as confident in it.
+			// Using GetMessage() may be superior to PeekMessage() for performance and efficiency,
+			// since the thread won't wake until a message arrives.  GetMessage() may also dispatch
+			// any incoming nonqueued messages before returning, as do MsgWaitForMultipleObjects()
+			// and PeekMessage() if the QS_SENDMESSAGE wake mask is used.  This would allow events
+			// to be dispatched to the hook if it was installed on this thread (but it isn't).
 			if (GetMessage(&msg, NULL, 0, MSG_FILTER_MAX) == -1) // -1 is an error, 0 means WM_QUIT
 				continue; // Error probably happens only when bad parameters were passed to GetMessage().
 			//else let any WM_QUIT be handled below.
