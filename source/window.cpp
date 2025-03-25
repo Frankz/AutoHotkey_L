@@ -1597,7 +1597,11 @@ HWND WindowSearch::IsMatch(bool aInvert)
 				return NULL;
 		}
 		else // For backward compatibility, all other modes use exact-match for Class.
-			if (_tcscmp(mCandidateClass, mCriterionClass)) // Doesn't match the required class name.
+			// v2.1: Use case-insensitive comparison because even if two classes are registered with the
+			// same name, they always have the same case due to the way class names are registered in the
+			// user atom table.  For instance, if we register "notepad" when Notepad isn't running and
+			// then open Notepad, its window class will be "notepad", not "Notepad".
+			if (_tcsicmp(mCandidateClass, mCriterionClass)) // Doesn't match the required class name.
 				return NULL;
 		// If nothing above returned, it's a match so far so continue onward to the other checks.
 	}
