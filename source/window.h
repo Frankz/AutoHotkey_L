@@ -120,6 +120,8 @@ public:
 
 	// Controlled by the SetCandidate() method:
 	HWND mCandidateParent;
+	DWORD mCandidateInfo; // Criteria flags indicating which attributes have been retrieved.
+	// Candidate attributes retrieved as needed:
 	DWORD mCandidatePID;
 	TCHAR mCandidateTitle[WINDOW_TEXT_SIZE];  // For storing title or class name of the given mCandidateParent.
 	TCHAR mCandidateClass[WINDOW_CLASS_SIZE]; // Must not share mem with mCandidateTitle because even if ahk_class is in effect, ExcludeTitle can also be in effect.
@@ -128,17 +130,16 @@ public:
 
 	void SetCandidate(HWND aWnd) // Must be kept thread-safe since it may be called indirectly by the hook thread.
 	{
-		// For performance reasons, update the attributes only if the candidate window changed:
+		// For performance reasons, invalidate previously retrieved attributes only if the candidate window changed:
 		if (mCandidateParent != aWnd)
 		{
 			mCandidateParent = aWnd;
-			UpdateCandidateAttributes(); // In case mCandidateParent isn't NULL, update the PID/Class/etc. based on what was set above.
+			mCandidateInfo = 0;
 		}
 	}
 
 	ResultType SetCriteria(ScriptThreadSettings &aSettings, LPCTSTR aTitle, LPCTSTR aText, LPCTSTR aExcludeTitle, LPCTSTR aExcludeText);
 	void SetCriteria(global_struct &aSettings, WinGroup &aGroup);
-	void UpdateCandidateAttributes();
 	HWND IsMatch(bool aInvert = false);
 
 	WindowSearch() // Constructor.
@@ -149,6 +150,7 @@ public:
 		, mFoundCount(0), mFoundParent(NULL) // Must be initialized here since none of the member functions is allowed to do it.
 		, mFoundChild(NULL) // ControlExist() relies upon this.
 		, mCandidateParent(NULL)
+		, mCandidateInfo(0)
 		// The following must be initialized because it's the object user's responsibility to override
 		// them in those relatively rare cases when they need to be.  WinGroup::ActUponAll() and
 		// WinGroup::Deactivate() (and probably other callers) rely on these attributes being retained

@@ -1371,14 +1371,14 @@ ResultType WindowSearch::SetCriteria(ScriptThreadSettings &aSettings, LPCTSTR aT
 	// here, nor does there seem to be a risk that deref buffer's contents will get overwritten
 	// while this set of criteria is in effect because our callers never allow interrupting script-threads
 	// *during* the duration of any one set of criteria.
-	bool exclude_title_became_non_blank = *aExcludeTitle && !*mCriterionExcludeTitle;
+	bool criterion_path_was_name_only = mCriterionPathIsNameOnly;
 	mCriterionExcludeTitle = aExcludeTitle;
 	mCriterionExcludeTitleLength = _tcslen(mCriterionExcludeTitle); // Pre-calculated for performance.
 	mCriterionText = aText;
 	mCriterionExcludeText = aExcludeText;
 	mSettings = &aSettings;
 
-	DWORD orig_criteria = mCriteria, this_criterion = CRITERION_TITLE, next_criterion;
+	DWORD this_criterion = CRITERION_TITLE, next_criterion;
 	LPCTSTR start, end, value, next_value = nullptr;
 	size_t value_length, buf_used = 0;
 
@@ -1500,12 +1500,10 @@ ResultType WindowSearch::SetCriteria(ScriptThreadSettings &aSettings, LPCTSTR aT
 		mCriteria |= this_criterion;
 	}
 
-	// Since this function doesn't change mCandidateParent, there is no need to update the candidate's
-	// attributes unless the type of criterion has changed or if mExcludeTitle became non-blank as
-	// a result of our action above:
-	if (mCriteria != orig_criteria || exclude_title_became_non_blank)
-		UpdateCandidateAttributes(); // In case mCandidateParent isn't NULL, fetch different attributes based on what was set above.
-	//else for performance reasons, avoid unnecessary updates.
+	// Any previously retrieved attributes of mCandidateParent remain valid, except:
+	if (criterion_path_was_name_only != mCriterionPathIsNameOnly)
+		mCandidateInfo &= ~CRITERION_PATH;
+
 	return OK;
 }
 
@@ -1524,35 +1522,6 @@ void WindowSearch::SetCriteria(global_struct &aSettings, WinGroup &aGroup)
 
 
 
-void WindowSearch::UpdateCandidateAttributes()
-// This function must be kept thread-safe because it may be called (indirectly) by hook thread too.
-{
-	// Nothing to do until SetCandidate() is called with a non-NULL candidate and SetCriteria()
-	// has been called for the first time (otherwise, mCriterionExcludeTitle and other things
-	// are not yet initialized:
-	if (!mCandidateParent || !mCriteria)
-		return;
-	if ((mCriteria & CRITERION_TITLE) || *mCriterionExcludeTitle) // Need the window's title in both these cases.
-		if (!GetWindowText(mCandidateParent, mCandidateTitle, _countof(mCandidateTitle)))
-			*mCandidateTitle = '\0'; // Failure or blank title is okay.
-	if (mCriteria & CRITERION_PID) // In which case mCriterionPID should already be filled in, though it might be an explicitly specified zero.
-		GetWindowThreadProcessId(mCandidateParent, &mCandidatePID);
-	if (mCriteria & CRITERION_PATH)
-	{
-		DWORD dwPid;
-		if (GetWindowThreadProcessId(mCandidateParent, &dwPid))
-			if (!GetProcessName(dwPid, mCandidatePath, _countof(mCandidatePath), mCriterionPathIsNameOnly))
-				*mCandidatePath = '\0';
-	}
-	if (mCriteria & CRITERION_CLASS)
-		GetClassName(mCandidateParent, mCandidateClass, _countof(mCandidateClass)); // Limit to WINDOW_CLASS_SIZE in this case since that's the maximum that can be searched.
-	// Nothing to do for these:
-	//CRITERION_GROUP:    Can't be pre-processed at this stage.
-	//CRITERION_ID:       It is mCandidateParent, which has already been set by SetCandidate().
-}
-
-
-
 HWND WindowSearch::IsMatch(bool aInvert)
 // Caller must have called SetCriteria prior to calling this method, at least for the purpose of setting
 // mSettings to a valid address (and possibly other reasons).
@@ -1565,6 +1534,39 @@ HWND WindowSearch::IsMatch(bool aInvert)
 {
 	if (!mCandidateParent || !mCriteria) // Nothing to check, so no match.
 		return NULL;
+
+	// Candidate attributes are retrieved only here when it is known that they will actually be used,
+	// and are retrieved only once per candidate even if criteria changes (unlike the previous method).
+	// Benchmarks showed this performs:
+	//  - Far better for window groups with many varied criteria.
+	//  - Far better when it allows GetProcessName to be skipped.
+	//  - Somewhat better when it allows GetClassName to be skipped.
+	// Keep in mind that most windows don't match even the first criterion, so the other criteria can
+	// be skipped many times when enumerating through windows.  The effect can be significant even if
+	// the window exists and is toward the top of the Z-order.
+	
+	if (mCriteria & CRITERION_PID)
+	{
+		// Retrieving PID unconditionally doesn't particularly help code size and had a negative
+		// impact on benchmarks with ahk_pid used in a window group.
+		if (!(mCandidateInfo & CRITERION_PID))
+		{
+			if (!GetWindowThreadProcessId(mCandidateParent, &mCandidatePID))
+				mCandidatePID = -1;
+			mCandidateInfo |= CRITERION_PID;
+		}
+		if (mCandidatePID != mCriterionPID)
+			return NULL;
+		//else it's a match so far, but continue onward in case there are other criteria.
+	}
+
+	if (((mCriteria & CRITERION_TITLE) || *mCriterionExcludeTitle) // Need the window's title in both these cases.
+		&& !(mCandidateInfo & CRITERION_TITLE))
+	{
+		if (!GetWindowText(mCandidateParent, mCandidateTitle, _countof(mCandidateTitle)))
+			*mCandidateTitle = '\0'; // Failure or blank title is okay.
+		mCandidateInfo |= CRITERION_TITLE;
+	}
 
 	if ((mCriteria & CRITERION_TITLE) && *mCriterionTitle) // For performance, avoid the calls below (especially RegEx) when mCriterionTitle is blank (assuming it's even possible for it to be blank under these conditions).
 	{
@@ -1591,6 +1593,12 @@ HWND WindowSearch::IsMatch(bool aInvert)
 
 	if (mCriteria & CRITERION_CLASS) // mCriterionClass is probably always non-blank when CRITERION_CLASS is present (harmless even if it isn't), so *mCriterionClass isn't checked.
 	{
+		if (!(mCandidateInfo & CRITERION_CLASS))
+		{
+			if (!GetClassName(mCandidateParent, mCandidateClass, _countof(mCandidateClass)))
+				*mCandidateClass = '\0';
+			mCandidateInfo |= CRITERION_CLASS;
+		}
 		if (mSettings->TitleMatchMode == FIND_REGEX)
 		{
 			if (!RegExMatch(mCandidateClass, mCriterionClass))
@@ -1606,13 +1614,16 @@ HWND WindowSearch::IsMatch(bool aInvert)
 		// If nothing above returned, it's a match so far so continue onward to the other checks.
 	}
 
-	// For the following, mCriterionPID would already be filled in, though it might be an explicitly specified zero.
-	if ((mCriteria & CRITERION_PID) && mCandidatePID != mCriterionPID) // Doesn't match required PID.
-		return NULL;
-	//else it's a match so far, but continue onward in case there are other criteria.
-
 	if (mCriteria & CRITERION_PATH)
 	{
+		if (!(mCandidateInfo & CRITERION_PATH))
+		{
+			DWORD pid;
+			if (GetWindowThreadProcessId(mCandidateParent, &pid))
+				if (!GetProcessName(pid, mCandidatePath, _countof(mCandidatePath), mCriterionPathIsNameOnly))
+					*mCandidatePath = '\0';
+			mCandidateInfo |= CRITERION_PATH;
+		}
 		if (mSettings->TitleMatchMode == FIND_REGEX)
 		{
 			if (!RegExMatch(mCandidatePath, mCriterionPath))
