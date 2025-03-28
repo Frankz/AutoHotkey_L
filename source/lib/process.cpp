@@ -242,9 +242,15 @@ DWORD GetProcessName(DWORD aProcessID, LPTSTR aBuf, DWORD aBufSize, bool aGetNam
 			TCHAR letter[3];
 			letter[1] = ':';
 			letter[2] = '\0';
-			// For simplicity and because GetLogicalDriveStrings does not exist on Win2k, it is not used.
-			for (*letter = 'A'; *letter <= 'Z'; ++(*letter))
+			// Get the mask of valid drive letters to avoid some unnecessary QueryDosDevice calls.
+			// Mapping drive Z: to a network folder is relatively common, so this can avoid many
+			// calls.  On typical systems, it just avoids querying A: and 'B:.
+			DWORD mask = GetLogicalDrives();
+			for (int i = 0; i < 26; ++i)
 			{
+				if (!(mask & (1 << i)))
+					continue;
+				*letter = 'A' + i;
 				DWORD device_path_length = QueryDosDevice(letter, device_path, _countof(device_path));
 				if (device_path_length > 2) // Includes two null terminators.
 				{
