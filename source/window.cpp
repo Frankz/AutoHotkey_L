@@ -523,8 +523,55 @@ HWND WinExist(global_struct &aSettings, LPCTSTR aTitle, LPCTSTR aText, LPCTSTR a
 			return NULL;
 		//else fall through to the section below, since ws.mFoundCount and ws.mFoundParent were set by ws.IsMatch().
 	}
-	else // aWinTitle doesn't start with "ahk_id".  Try to find a matching window.
-		EnumWindows(EnumParentFind, (LPARAM)&ws);
+	else // aWinTitle doesn't contain "ahk_id".  Try to find a matching window.
+	{
+		if ((ws.mCriteria & CRITERION_CLASS) && aSettings.TitleMatchMode != FIND_REGEX && !aFindLastMatch)
+		{
+			// This should be a reliable way to find the first window with the given class name.
+			// Benchmarks showed FindWindow to be perhaps 20 times faster than using EnumWindows
+			// in the two very common scenarios where its result can be used:
+			//  1) The top-most window with a given class name also matches the other criteria.
+			//  2) There are no windows with a given class name.  It is especially fast if there
+			//     are no classes, window messages or clipboard formats currently registered with
+			//     this name (i.e. the name isn't registered in the user atom table).
+			// Because these cases are common and FindWindow is so fast in comparison to EnumWindows,
+			// it seems well worth trying FindWindow before EnumWindows.  The title parameter must be
+			// omitted in FIND_IN_LEADING_PART or FIND_ANYWHERE modes, otherwise it would exclude valid
+			// candidate windows.  For FIND_EXACT mode, specifying the title makes it more likely that
+			// the found window will be a match, but we still need to do a case-sensitive comparison.
+			LPCTSTR title = ((ws.mCriteria & CRITERION_TITLE) && aSettings.TitleMatchMode == FIND_EXACT) ? ws.mCriterionTitle : nullptr;
+			HWND hwnd = FindWindow(ws.mCriterionClass, title);
+			if (!hwnd)
+				return NULL; // There are definitely no matching windows, so skip EnumWindows.
+			if (aSettings.DetectWindow(hwnd))
+			{
+				ws.SetCandidate(hwnd);
+				ws.IsMatch();
+			}
+			// The following could be used to get the atom which corresponds to mCriterionClass,
+			// allowing EnumParentFind to compare atoms and avoid retrieving titles or class names
+			// in many cases.  It isn't done because:
+			//  - Although the atom value is known to be the same for all window classes with that
+			//    name (and all registered window messages and clipboard formats with that name),
+			//    if all such classes are unregistered, the atom is released and can be reused for
+			//    some other name.  This makes it difficult to disprove the possibility of a race
+			//    condition where the atom value changes meaning before we can use it.
+			//  - It would increase complexity, as GetClassName would still be needed in some cases.
+			//  - Benchmarks indicated that GetWindowText is almost as fast as GetClassWord on
+			//    average, and although GetClassName is slower, we don't call it if the title
+			//    doesn't match.  (But title vs atom comparison wasn't factored in.)
+			//ATOM atom = GetClassWord(hwnd, GCW_ATOM);
+		}
+		if (!ws.mFoundParent)
+			EnumWindows(EnumParentFind, (LPARAM)&ws);
+		// Performance note: Simple benchmarks confirmed the cost is proportionate to the number of
+		// top-level windows even when the callback is only called once (because it returns FALSE).
+		// The most plausible explanation is that EnumChildWindows/EnumWindows copies the list of HWNDs
+		// prior to calling the callback for the first time, to guarantee that changes to the Z-order
+		// won't interrupt the enumeration.  (Although the documentation for EnumWindows doesn't make
+		// such a guarantee, the documentation for EnumChildWindows does, and states that the two are
+		// equivalent when the hwndParent parameter is NULL.)
+	}
 
 	UPDATE_AND_RETURN_LAST_USED_WINDOW(ws.mFoundParent) // This also does a "return".
 }
