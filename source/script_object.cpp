@@ -576,7 +576,6 @@ ObjectMember Object::sMembers[] =
 	Object_Method1(GetOwnPropDesc, 1, 1),
 	Object_Method1(HasOwnProp, 1, 1),
 	Object_Method1(OwnProps, 0, 0),
-	Object_Method1(Props, 0, 0)
 };
 
 LPTSTR Object::sMetaFuncName[] = { _T("__Get"), _T("__Set"), _T("__Call") };
@@ -1538,11 +1537,6 @@ void Object::OwnProps(ResultToken &aResultToken, int aID, int aFlags, ExprTokenT
 {
 	_o_return(new IndexEnumerator(this, ParamIndexToOptionalInt(0, 0)
 		, static_cast<IndexEnumerator::Callback>(&Object::GetEnumProp)));
-}
-
-void Object::Props(ResultToken &aResultToken, int aID, int aFlags, ExprTokenType *aParam[], int aParamCount)
-{
-	_o_return(new PropEnum(this));
 }
 
 void Map::__Enum(ResultToken &aResultToken, int aID, int aFlags, ExprTokenType *aParam[], int aParamCount)
@@ -3682,7 +3676,7 @@ void Object::CreateRootPrototypes()
 
 	// These methods correspond to global functions, as BuiltInMethod
 	// only handles Objects, and these must handle primitive values.
-	static const LPTSTR sFuncs[] = { _T("GetMethod"), _T("HasBase"), _T("HasMethod"), _T("HasProp") };
+	static const LPTSTR sFuncs[] = { _T("GetMethod"), _T("HasBase"), _T("HasMethod"), _T("HasProp"), _T("Props") };
 	for (int i = 0; i < _countof(sFuncs); ++i)
 		sAnyPrototype->DefineMethod(sFuncs[i], g_script.GetBuiltinObject(sFuncs[i]));
 	auto prop = sAnyPrototype->DefineProperty(_T("Base"), false);

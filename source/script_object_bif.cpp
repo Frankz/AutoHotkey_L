@@ -217,6 +217,15 @@ BIF_DECL(BIF_HasProp)
 }
 
 
+BIF_DECL(BIF_Props)
+{
+	auto obj = ParamToObjectOrBase(*aParam[0]);
+	if (obj == Object::sComObjectPrototype)
+		_f_throw_param(0);
+	_f_return(new Object::PropEnum(obj, *aParam[0]));
+}
+
+
 BIF_DECL(BIF_GetMethod)
 {
 	auto obj = ParamToObjectOrBase(*aParam[0]);

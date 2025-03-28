@@ -2644,6 +2644,7 @@ BIF_DECL(BIF_Base);
 BIF_DECL(BIF_HasBase);
 BIF_DECL(BIF_HasProp);
 BIF_DECL(BIF_GetMethod);
+BIF_DECL(BIF_Props);
 
 // Advanced file IO interfaces
 BIF_DECL(BIF_FileOpen);
