@@ -1618,7 +1618,7 @@ TypedProperty *Object::DefineTypedProperty(name_t aName)
 	return field->tprop;
 }
 
-FResult Object::DefineTypedProperty(name_t aName, MdType aType, Object *aClass, size_t aCount)
+FResult Object::DefineTypedProperty(name_t aName, MdType aType, Object *aClass, size_t aCount, size_t aPack)
 {
 	size_t psize = 0, palign = 0;
 	if (aClass)
@@ -1637,7 +1637,7 @@ FResult Object::DefineTypedProperty(name_t aName, MdType aType, Object *aClass, 
 		if (aType == MdType::Void)
 		{
 			psize = aCount;
-			palign = 1;
+			palign = aPack ? aPack : 1;
 		}
 	}
 	else
@@ -1659,7 +1659,9 @@ FResult Object::DefineTypedProperty(name_t aName, MdType aType, Object *aClass, 
 		aClass->AddRef();
 	}
 	tprop->item_count = aCount;
-	if (palign > si->align) // TODO: allow overriding struct packing
+	if (aPack && palign > aPack)
+		palign = aPack;
+	if (palign > si->align)
 		si->align = palign;
 	ASSERT(palign && ((palign & (palign - 1)) == 0)); // Must be a power of 2.
 	si->size = (si->size + palign - 1) & ~(palign - 1);
@@ -1769,7 +1771,8 @@ void Object::DefineProp(ResultToken &aResultToken, int aID, int aFlags, ExprToke
 		Object *pclass = dynamic_cast<Object*>(TokenToObject(value));
 		MdType ptype = pclass ? MdType::Void : TypeCode(TokenToString(value));
 		size_t pcount = (ptype == MdType::Void) ? (size_t)TokenToInt64(value) : 0;
-		switch (DefineTypedProperty(name, ptype, pclass, pcount))
+		size_t pack = desc->GetOwnProp(value, _T("Pack")) ? (size_t)TokenToInt64(value) : 0;
+		switch (DefineTypedProperty(name, ptype, pclass, pcount, pack))
 		{
 		case OK:
 			AddRef();

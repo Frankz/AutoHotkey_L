@@ -2187,6 +2187,7 @@ private:
 	LineNumberType mCombinedLineNumber; // In the case of a continuation section/line(s), this is always the top line.
 
 	bool mClassPropertyStatic;
+	char mClassStructPack[MAX_NESTED_CLASSES + 1] {0};
 
 	#define UPDATE_TIP_FIELD tcslcpy(mNIC.szTip, mTrayIconTip ? mTrayIconTip \
 		: mFileName, _countof(mNIC.szTip));

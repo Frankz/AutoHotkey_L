@@ -4000,6 +4000,22 @@ inline ResultType Script::IsDirective(LPTSTR aBuf)
 		return ParseModuleDirective(parameter);
 	}
 
+	if (IS_DIRECTIVE_MATCH(_T("#StructPack")))
+	{
+		int i = parameter ? IsNumeric(parameter, FALSE, FALSE) ? ATOI(parameter) : -1 : 0;
+		switch (i)
+		{
+		case 0:
+		case 1:
+		case 2:
+		case 4:
+		case 8:
+			mClassStructPack[mClassObjectCount] = i;
+			return CONDITION_TRUE;
+		}
+		return ScriptError(ERR_PARAM1_INVALID, parameter);
+	}
+
 	// Otherwise, report that this line isn't a directive:
 	return CONDITION_FALSE;
 }
@@ -6228,6 +6244,7 @@ ResultType Script::DefineClass(LPTSTR aBuf, TCHAR aExport)
 	if (mClassObjectCount ? !DefineClassVarInit(mClassName, true, outer_class, ACT_EXPRESSION) : !ParseAndAddLine(mClassName, ACT_EXPRESSION))
 		return FAIL;
 	mClassObject[mClassObjectCount++] = class_object;
+	mClassStructPack[mClassObjectCount] = mClassStructPack[mClassObjectCount - 1];
 	// Define __Init unconditionally so that classes without static vars do not inherit __Init.
 	if (!DefineClassInit(true))
 		return FAIL;
@@ -6444,8 +6461,8 @@ ResultType Script::DefineClassVars(LPTSTR aBuf, bool aStatic)
 					TCHAR qu[2] { 0 };
 					if (TypeCode(type_name) != MdType::Void)
 						qu[0] = '\'';
-					_sntprintf(type_buf, _countof(type_buf), _T("this.Prototype.DefineProp('%s',{Type:%s%s%s})")
-						, item, qu, type_name, qu);
+					_sntprintf(type_buf, _countof(type_buf), _T("this.Prototype.DefineProp('%s',{Type:%s%s%s,Pack:%i})")
+						, item, qu, type_name, qu, mClassStructPack[mClassObjectCount]);
 					if (!DefineClassVarInit(type_buf, true, class_object, ACT_EXPRESSION))
 						return FAIL;
 					*type_name_end = type_end_char;
