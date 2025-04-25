@@ -2395,7 +2395,7 @@ public:
 	ResultType CloseCurrentModule();
 	ResultType ResolveImports();
 	ResultType ResolveImports(ScriptImport &aImport);
-	Var *AddNewImportVar(LPTSTR aVarName);
+	Var *AddNewImportVar(LPTSTR aVarName, Var *aAliasFor, IObject *aModule, bool aExport);
 	Var *FindImportedVar(LPCTSTR aVarName);
 
 	ResultType DerefInclude(LPTSTR &aOutput, LPCTSTR aBuf);

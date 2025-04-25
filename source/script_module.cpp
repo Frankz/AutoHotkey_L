@@ -85,8 +85,9 @@ Var *Script::FindImportedVar(LPCTSTR aVarName)
 // Raises an error if a conflicting declaration exists.
 // May use an existing Var if not previously marked as declared, such as if created by Export.
 // Caller provides persistent memory for aVarName.
-Var *Script::AddNewImportVar(LPTSTR aVarName)
+Var *Script::AddNewImportVar(LPTSTR aVarName, Var *aAliasFor, IObject *aModule, bool aExport)
 {
+	ASSERT(aVarName && (aAliasFor || aModule));
 	int at;
 	auto var = mCurrentModule->mVars.Find(aVarName, &at);
 	if (var)
@@ -94,6 +95,8 @@ Var *Script::AddNewImportVar(LPTSTR aVarName)
 		// mVars should contain only declared or exported variables at this point.
 		if (var->IsDeclared())
 		{
+			if (aAliasFor ? var->IsAlias() && var->GetAliasFor() == aAliasFor : var->ToObject() == aModule)
+				return var; // Already imported.
 			ConflictingDeclarationError(_T("Import"), var);
 			return nullptr;
 		}
@@ -108,6 +111,19 @@ Var *Script::AddNewImportVar(LPTSTR aVarName)
 		MemoryError();
 		return nullptr;
 	}
+	if (aAliasFor)
+	{
+		// For code size, aliasing is used even for constants.  For non-dynamic references to
+		// constants, PreparseVarRefs() eliminates both the alias and the var reference itself.
+		var->UpdateAlias(aAliasFor);
+	}
+	else
+	{
+		var->Assign(aModule);
+		var->MakeReadOnly();
+	}
+	if (aExport)
+		var->Scope() |= VAR_EXPORTED;
 	return var;
 }
 
@@ -235,22 +251,9 @@ ResultType Script::ResolveImports(ScriptImport &imp)
 	{
 		// Do not reuse mSelf or a previous Var created by an import even if mod_name == var_name,
 		// since the exported status of the Var (VAR_EXPORTED) shouldn't propagate between modules.
-		auto var = AddNewImportVar(var_name);
+		auto var = AddNewImportVar(var_name, imp.mod->mSelf, imp.mod, imp.is_export);
 		if (!var)
 			return FAIL;
-		if (imp.mod->mSelf) // Default export.
-		{
-			// For code size, aliasing is used even for constants.  For non-dynamic references to
-			// constants, PreparseVarRefs() eliminates both the alias and the var reference itself.
-			var->UpdateAlias(imp.mod->mSelf);
-		}
-		else
-		{
-			var->Assign(imp.mod);
-			var->MakeReadOnly();
-		}
-		if (imp.is_export)
-			var->Scope() |= VAR_EXPORTED;
 	}
 
 	if (names)
@@ -279,12 +282,9 @@ ResultType Script::ResolveImports(ScriptImport &imp)
 					*cp = '\0';
 					while (IS_SPACE_OR_TAB(c)) c = *++cp; // Find next non-whitespace.
 				}
-				auto imported = AddNewImportVar(var_name);
+				auto imported = AddNewImportVar(var_name, exported, nullptr, imp.is_export);
 				if (!imported)
 					return FAIL;
-				imported->UpdateAlias(exported); // See the other UpdateAlias call above for comments.
-				if (imp.is_export)
-					imported->Scope() |= VAR_EXPORTED;
 			}
 			if (c == '}')
 				break;
