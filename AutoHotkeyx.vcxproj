@@ -351,7 +351,7 @@
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="source\resources\AutoHotkey.exe.manifest">
-      <Command>cscript.exe //NoLogo "$(SolutionDir)source\scripts\minman.js" "%(FullPath)" "$(SolutionDir)temp\AutoHotkey.exe.manifest"</Command>
+      <Command>cscript.exe //E:JScript //NoLogo "$(SolutionDir)source\scripts\minman.js" "%(FullPath)" "$(SolutionDir)temp\AutoHotkey.exe.manifest"</Command>
       <Outputs>$(SolutionDir)temp\AutoHotkey.exe.manifest</Outputs>
       <SubType>Designer</SubType>
     </CustomBuild>
